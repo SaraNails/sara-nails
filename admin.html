@@ -387,32 +387,34 @@
       }
     }
 
-    // Polling - verifica novos agendamentos a cada 15 segundos
-    var ultimoAgendamentoId = null;
+    // Polling - verifica novos agendamentos a cada 10 segundos
+    var ultimoCheck = null;
     var pollingInterval = null;
+    var checkCount = 0;
 
     function iniciarPollingNotificacoes() {
-      // Pega o último agendamento atual para não notificar os antigos
-      db.from('agendamentos').select('id,criado_em').order('criado_em',{ascending:false}).limit(1).then(function(r) {
-        if (r.data && r.data.length > 0) {
-          ultimoAgendamentoId = r.data[0].criado_em;
-        } else {
-          ultimoAgendamentoId = new Date().toISOString();
-        }
+      // Marca o momento atual como referência
+      ultimoCheck = new Date().toISOString();
 
-        // Indicador verde
-        var indicator = document.getElementById('realtime-status');
-        if (indicator) { indicator.style.background = '#2ecc71'; indicator.title = 'Notificações ativas'; }
+      // Indicador verde
+      var indicator = document.getElementById('realtime-status');
+      if (indicator) { indicator.style.background = '#2ecc71'; indicator.title = 'Notificações ativas'; }
 
-        // Inicia polling
-        if (pollingInterval) clearInterval(pollingInterval);
-        pollingInterval = setInterval(verificarNovosAgendamentos, 15000);
-      });
+      // Inicia polling a cada 10 segundos
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(verificarNovosAgendamentos, 10000);
+
+      // Toast confirmando
+      showToast('Notificações ativadas!');
     }
 
     async function verificarNovosAgendamentos() {
+      checkCount++;
+      var indicator = document.getElementById('realtime-status');
+      if (indicator) indicator.title = 'Ativo - ' + checkCount + ' verificações';
+
       try {
-        var r = await db.from('agendamentos').select('*,servicos(nome)').gt('criado_em', ultimoAgendamentoId).order('criado_em',{ascending:false});
+        var r = await db.from('agendamentos').select('*,servicos(nome)').gt('criado_em', ultimoCheck).eq('status','pendente').order('criado_em',{ascending:false});
         if (!r.data || r.data.length === 0) return;
 
         // Atualiza referência
