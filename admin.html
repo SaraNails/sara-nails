@@ -394,7 +394,8 @@
     // Escuta novos agendamentos em tempo real
     function iniciarRealtimeNotificacoes() {
       var channel = db.channel('novos-agendamentos')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'agendamentos' }, function(payload) {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos' }, function(payload) {
+          if (payload.eventType !== 'INSERT') { loadAdminBookings(); return; }
           console.log('Novo agendamento recebido:', payload);
           var ag = payload.new;
           var nome = ag.cliente_nome || 'Cliente';
