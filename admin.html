@@ -478,7 +478,36 @@
     showAdminPanel = function() {
       originalShowAdminPanel();
       pedirPermissaoNotificacao();
-      iniciarPollingNotificacoes();
+      // Inicia polling direto aqui com delay
+      setTimeout(function() {
+        db.from('agendamentos').select('id').eq('status','pendente').then(function(r) {
+          conhecidos = (r.data || []).map(function(a){ return a.id; });
+          var indicator = document.getElementById('realtime-status');
+          if (indicator) { indicator.style.background = '#2ecc71'; }
+          showToast('Notificações ativadas! (' + conhecidos.length + ' pendentes)');
+          setInterval(function() {
+            db.from('agendamentos').select('*,servicos(nome)').eq('status','pendente').then(function(r2) {
+              if (r2.error || !r2.data) return;
+              var novos = r2.data.filter(function(a){ return conhecidos.indexOf(a.id) === -1; });
+              if (novos.length === 0) return;
+              novos.forEach(function(a){ conhecidos.push(a.id); });
+              novos.forEach(function(ag) {
+                var nome = ag.cliente_nome || 'Cliente';
+                var dh = new Date(ag.data_hora);
+                var ds = dh.toLocaleDateString('pt-BR');
+                var hs = dh.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+                var sn = ag.servicos ? ag.servicos.nome : '';
+                var msg = nome + ' agendou ' + sn + ' para ' + ds + ' às ' + hs;
+                showToast(msg);
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification('Novo Agendamento!', { body: msg, icon: 'https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/logo.png', vibrate: [200,100,200] });
+                }
+              });
+              loadAdminBookings();
+            });
+          }, 10000);
+        });
+      }, 2000);
     };
   </script>
 </body>
