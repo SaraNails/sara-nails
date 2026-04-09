@@ -376,38 +376,61 @@
       loadAdminHorarios();
     }
 
-    // ===== PWA + NOTIFICAÇÕES =====
-    // Registra Service Worker
+    // ===== PWA + NOTIFICAÇÕES (POLLING) =====
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(function(reg) {
-        console.log('SW registrado');
-      }).catch(function(e) { console.log('SW erro:', e); });
+      navigator.serviceWorker.register('sw.js').catch(function(e){});
     }
 
-    // Pede permissão de notificação
     function pedirPermissaoNotificacao() {
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
     }
 
-    // Escuta novos agendamentos em tempo real
-    function iniciarRealtimeNotificacoes() {
-      var channel = db.channel('novos-agendamentos')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos' }, function(payload) {
-          if (payload.eventType !== 'INSERT') { loadAdminBookings(); return; }
-          console.log('Novo agendamento recebido:', payload);
-          var ag = payload.new;
+    // Polling - verifica novos agendamentos a cada 15 segundos
+    var ultimoAgendamentoId = null;
+    var pollingInterval = null;
+
+    function iniciarPollingNotificacoes() {
+      // Pega o último agendamento atual para não notificar os antigos
+      db.from('agendamentos').select('id,criado_em').order('criado_em',{ascending:false}).limit(1).then(function(r) {
+        if (r.data && r.data.length > 0) {
+          ultimoAgendamentoId = r.data[0].criado_em;
+        } else {
+          ultimoAgendamentoId = new Date().toISOString();
+        }
+
+        // Indicador verde
+        var indicator = document.getElementById('realtime-status');
+        if (indicator) { indicator.style.background = '#2ecc71'; indicator.title = 'Notificações ativas'; }
+
+        // Inicia polling
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(verificarNovosAgendamentos, 15000);
+      });
+    }
+
+    async function verificarNovosAgendamentos() {
+      try {
+        var r = await db.from('agendamentos').select('*,servicos(nome)').gt('criado_em', ultimoAgendamentoId).order('criado_em',{ascending:false});
+        if (!r.data || r.data.length === 0) return;
+
+        // Atualiza referência
+        ultimoAgendamentoId = r.data[0].criado_em;
+
+        // Notifica cada novo agendamento
+        r.data.forEach(function(ag) {
           var nome = ag.cliente_nome || 'Cliente';
-          var tel = ag.cliente_telefone || '';
           var dataHora = new Date(ag.data_hora);
           var dataStr = dataHora.toLocaleDateString('pt-BR');
-          var horaStr = dataHora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+          var horaStr = dataHora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+          var servico = ag.servicos ? ag.servicos.nome : '';
+          var msg = nome + ' agendou ' + servico + ' para ' + dataStr + ' às ' + horaStr;
 
           // Notificação do navegador
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Novo Agendamento!', {
-              body: nome + ' agendou para ' + dataStr + ' às ' + horaStr,
+              body: msg,
               icon: 'https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/logo.png',
               tag: 'agendamento-' + ag.id,
               renotify: true,
@@ -415,28 +438,15 @@
             });
           }
 
-          // Atualiza a tabela
-          loadAdminBookings();
-
           // Toast na tela
-          showToast('Novo agendamento de ' + nome + ' para ' + dataStr + ' às ' + horaStr);
-        })
-        .subscribe(function(status) {
-          console.log('Realtime status:', status);
-          var indicator = document.getElementById('realtime-status');
-          if (indicator) {
-            if (status === 'SUBSCRIBED') {
-              indicator.style.background = '#2ecc71';
-              indicator.title = 'Notificações ativas';
-            } else {
-              indicator.style.background = '#f39c12';
-              indicator.title = 'Conectando... (' + status + ')';
-            }
-          }
+          showToast(msg);
         });
+
+        // Atualiza tabela
+        loadAdminBookings();
+      } catch(e) { console.error('Polling erro:', e); }
     }
 
-    // Toast notification na tela
     function showToast(msg) {
       var toast = document.createElement('div');
       toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#6b2fa0,#8b5cf6);color:#fff;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(107,47,160,0.3);z-index:9999;max-width:90%;text-align:center;animation:slideUp 0.3s ease';
@@ -445,37 +455,28 @@
       setTimeout(function(){ toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(function(){ toast.remove(); }, 300); }, 5000);
     }
 
-    // Adiciona animação do toast
     var toastStyle = document.createElement('style');
     toastStyle.textContent = '@keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}';
     document.head.appendChild(toastStyle);
 
-    // Banner de instalar PWA
+    // Banner instalar PWA
     var deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', function(e) {
       e.preventDefault();
       deferredPrompt = e;
-      // Mostra botão de instalar
       var btn = document.createElement('button');
       btn.textContent = 'Instalar App';
-      btn.id = 'install-btn';
       btn.style.cssText = 'position:fixed;bottom:20px;right:20px;background:linear-gradient(135deg,#6b2fa0,#8b5cf6);color:#fff;border:none;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(107,47,160,0.3);z-index:9999';
-      btn.onclick = function() {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then(function(choice) {
-          deferredPrompt = null;
-          btn.remove();
-        });
-      };
+      btn.onclick = function() { deferredPrompt.prompt(); deferredPrompt.userChoice.then(function(){ deferredPrompt = null; btn.remove(); }); };
       document.body.appendChild(btn);
     });
 
-    // Inicia tudo quando o painel admin é mostrado
+    // Inicia quando o painel é mostrado
     var originalShowAdminPanel = showAdminPanel;
     showAdminPanel = function() {
       originalShowAdminPanel();
       pedirPermissaoNotificacao();
-      iniciarRealtimeNotificacoes();
+      iniciarPollingNotificacoes();
     };
   </script>
 </body>
