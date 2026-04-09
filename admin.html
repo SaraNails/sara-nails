@@ -388,40 +388,38 @@
     }
 
     // Polling - verifica novos agendamentos a cada 10 segundos
-    var ultimoCheck = null;
+    var conhecidos = [];
     var pollingInterval = null;
-    var checkCount = 0;
 
     function iniciarPollingNotificacoes() {
-      // Marca o momento atual como referência
-      ultimoCheck = new Date().toISOString();
+      // Carrega IDs dos agendamentos pendentes atuais
+      db.from('agendamentos').select('id').eq('status','pendente').then(function(r) {
+        conhecidos = (r.data || []).map(function(a){ return a.id; });
 
-      // Indicador verde
-      var indicator = document.getElementById('realtime-status');
-      if (indicator) { indicator.style.background = '#2ecc71'; indicator.title = 'Notificações ativas'; }
+        var indicator = document.getElementById('realtime-status');
+        if (indicator) { indicator.style.background = '#2ecc71'; indicator.title = 'Notificações ativas'; }
 
-      // Inicia polling a cada 10 segundos
-      if (pollingInterval) clearInterval(pollingInterval);
-      pollingInterval = setInterval(verificarNovosAgendamentos, 10000);
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(verificarNovosAgendamentos, 10000);
 
-      // Toast confirmando
-      showToast('Notificações ativadas!');
+        showToast('Notificações ativadas!');
+      });
     }
 
     async function verificarNovosAgendamentos() {
-      checkCount++;
-      var indicator = document.getElementById('realtime-status');
-      if (indicator) indicator.title = 'Ativo - ' + checkCount + ' verificações';
-
       try {
-        var r = await db.from('agendamentos').select('*,servicos(nome)').gt('criado_em', ultimoCheck).eq('status','pendente').order('criado_em',{ascending:false});
-        if (!r.data || r.data.length === 0) return;
+        var r = await db.from('agendamentos').select('*,servicos(nome)').eq('status','pendente');
+        if (!r.data) return;
 
-        // Atualiza referência
-        ultimoAgendamentoId = r.data[0].criado_em;
+        // Filtra só os novos (IDs que não conhecemos)
+        var novos = r.data.filter(function(a){ return conhecidos.indexOf(a.id) === -1; });
+        if (novos.length === 0) return;
+
+        // Adiciona os novos aos conhecidos
+        novos.forEach(function(a){ conhecidos.push(a.id); });
 
         // Notifica cada novo agendamento
-        r.data.forEach(function(ag) {
+        novos.forEach(function(ag) {
           var nome = ag.cliente_nome || 'Cliente';
           var dataHora = new Date(ag.data_hora);
           var dataStr = dataHora.toLocaleDateString('pt-BR');
