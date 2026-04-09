@@ -118,6 +118,7 @@
       <div class="admin-nav-brand">
         <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/logo.png" alt="">
         <span>Painel Admin</span>
+        <span id="realtime-status" title="Conectando..." style="width:10px;height:10px;border-radius:50%;background:#f39c12;display:inline-block"></span>
       </div>
       <div class="admin-nav-links">
         <a class="admin-nav-link active" onclick="showAdminSection('agendamentos', this)">Agendamentos</a>
@@ -392,8 +393,9 @@
 
     // Escuta novos agendamentos em tempo real
     function iniciarRealtimeNotificacoes() {
-      db.channel('novos-agendamentos')
+      var channel = db.channel('novos-agendamentos')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'agendamentos' }, function(payload) {
+          console.log('Novo agendamento recebido:', payload);
           var ag = payload.new;
           var nome = ag.cliente_nome || 'Cliente';
           var tel = ag.cliente_telefone || '';
@@ -412,13 +414,25 @@
             });
           }
 
-          // Atualiza a tabela se estiver na aba de agendamentos
+          // Atualiza a tabela
           loadAdminBookings();
 
           // Toast na tela
           showToast('Novo agendamento de ' + nome + ' para ' + dataStr + ' às ' + horaStr);
         })
-        .subscribe();
+        .subscribe(function(status) {
+          console.log('Realtime status:', status);
+          var indicator = document.getElementById('realtime-status');
+          if (indicator) {
+            if (status === 'SUBSCRIBED') {
+              indicator.style.background = '#2ecc71';
+              indicator.title = 'Notificações ativas';
+            } else {
+              indicator.style.background = '#f39c12';
+              indicator.title = 'Conectando... (' + status + ')';
+            }
+          }
+        });
     }
 
     // Toast notification na tela
