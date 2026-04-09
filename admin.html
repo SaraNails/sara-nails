@@ -409,7 +409,9 @@
     async function verificarNovosAgendamentos() {
       try {
         var r = await db.from('agendamentos').select('*,servicos(nome)').eq('status','pendente');
-        if (!r.data) return;
+
+        if (r.error) { showToast('ERRO: ' + r.error.message); return; }
+        if (!r.data) { showToast('Sem dados'); return; }
 
         // Filtra só os novos (IDs que não conhecemos)
         var novos = r.data.filter(function(a){ return conhecidos.indexOf(a.id) === -1; });
