@@ -199,6 +199,29 @@
     .hidden { display: none !important; }
     .mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; } .mb-16 { margin-bottom: 16px; }
 
+    /* ========== GALLERY MARQUEE ========== */
+    .gallery-marquee { overflow: hidden; width: 100%; padding: 10px 0; }
+    .gallery-track {
+      display: flex;
+      gap: 16px;
+      animation: marquee 25s linear infinite;
+      width: max-content;
+    }
+    .gallery-track:hover { animation-play-state: paused; }
+    .gallery-track img {
+      width: 220px;
+      height: 220px;
+      object-fit: cover;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(107,47,160,0.12);
+      transition: transform 0.3s;
+    }
+    .gallery-track img:hover { transform: scale(1.05); }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
     /* ========== MOBILE ========== */
     @media (max-width: 900px) {
       .services-grid { grid-template-columns: repeat(2, 1fr); }
@@ -324,6 +347,32 @@
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section class="landing-section" id="portfolio">
+      <div class="section-inner">
+        <p class="section-tag">Nosso trabalho</p>
+        <h2 class="section-title">Trabalhos Realizados</h2>
+      </div>
+      <div class="gallery-marquee">
+        <div class="gallery-track">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails1.jpg" alt="Unhas decoradas douradas">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails2.jpg" alt="Francesinha clássica">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails3.jpg" alt="Unhas marsala com corações">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails4.jpg" alt="Unhas azul royal">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails5.jpg" alt="Unhas nude delicadas">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails6.jpg" alt="Unhas rosa glitter">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails1.jpg" alt="Unhas decoradas douradas">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails2.jpg" alt="Francesinha clássica">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails3.jpg" alt="Unhas marsala com corações">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails4.jpg" alt="Unhas azul royal">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails5.jpg" alt="Unhas nude delicadas">
+          <img src="https://cfmtngpivszyzdsszzvj.supabase.co/storage/v1/object/public/assets/nails6.jpg" alt="Unhas rosa glitter">
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:24px">
+        <a href="https://www.instagram.com/saragnails__/" target="_blank" style="color:#6b2fa0;font-weight:600;text-decoration:none;font-size:15px">Veja mais no Instagram &#8594;</a>
       </div>
     </section>
 
