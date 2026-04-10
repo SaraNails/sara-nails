@@ -631,12 +631,21 @@
       showSection('booking-date');
     }
 
-    function renderCalendar() {
+    var datasBloqueadas = [];
+
+    async function renderCalendar() {
       var year = calendarDate.getFullYear();
       var month = calendarDate.getMonth();
       var today = new Date(); today.setHours(0,0,0,0);
       var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       document.getElementById('calendar-month-label').textContent = meses[month] + ' ' + year;
+
+      // Carrega datas bloqueadas do mês
+      var mesInicio = year + '-' + String(month+1).padStart(2,'0') + '-01';
+      var mesFim = year + '-' + String(month+1).padStart(2,'0') + '-31';
+      var rb = await db.from('datas_bloqueadas').select('data').gte('data', mesInicio).lte('data', mesFim);
+      datasBloqueadas = (rb.data || []).map(function(d){ return d.data; });
+
       var firstDay = new Date(year, month, 1).getDay();
       var daysInMonth = new Date(year, month + 1, 0).getDate();
       var html = '';
@@ -644,8 +653,10 @@
       for (var i = 0; i < firstDay; i++) html += '<button class="calendar-day empty"></button>';
       for (var d = 1; d <= daysInMonth; d++) {
         var date = new Date(year, month, d);
+        var dateISO = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+        var isBloqueada = datasBloqueadas.indexOf(dateISO) !== -1;
         var cls = 'calendar-day';
-        if (date < today || date.getDay() === 0) cls += ' disabled';
+        if (date < today || date.getDay() === 0 || isBloqueada) cls += ' disabled';
         if (date.getTime() === today.getTime()) cls += ' today';
         if (selectedDate && date.toDateString() === selectedDate.toDateString()) cls += ' selected';
         html += '<button class="' + cls + '" onclick="selectDate(' + year + ',' + month + ',' + d + ')">' + d + '</button>';
@@ -666,10 +677,16 @@
       var dayOfWeek = selectedDate.getDay();
       var dateStr = formatDate(selectedDate.toISOString());
       document.getElementById('selected-date-label').textContent = dateStr.full;
+
+      // Verifica se a data está bloqueada
+      var dateISO = selectedDate.getFullYear() + '-' + String(selectedDate.getMonth()+1).padStart(2,'0') + '-' + String(selectedDate.getDate()).padStart(2,'0');
+      var rb = await db.from('datas_bloqueadas').select('id').eq('data', dateISO);
+      if (rb.data && rb.data.length > 0) { document.getElementById('time-grid').innerHTML = '<p class="text-center text-gray" style="grid-column:1/-1">Este dia está indisponível</p>'; return; }
+
       var r1 = await db.from('horarios_disponiveis').select('*').eq('dia_semana', dayOfWeek).eq('ativo', true);
       if (!r1.data || r1.data.length === 0) { document.getElementById('time-grid').innerHTML = '<p class="text-center text-gray" style="grid-column:1/-1">Sem horários disponíveis neste dia</p>'; return; }
       var h = r1.data[0];
-      var slots = generateTimeSlots(h.hora_inicio, h.hora_fim, h.intervalo_min || selectedService.duracao_min);
+      var slots = generateTimeSlots(h.hora_inicio, h.hora_fim, h.intervalo_min || selectedService.duracao_min, h.pausa_inicio, h.pausa_fim);
       var startOfDay = new Date(selectedDate); startOfDay.setHours(0,0,0,0);
       var endOfDay = new Date(selectedDate); endOfDay.setHours(23,59,59,999);
       var r2 = await db.from('agendamentos').select('data_hora').gte('data_hora', startOfDay.toISOString()).lte('data_hora', endOfDay.toISOString()).neq('status', 'cancelado');
@@ -686,11 +703,22 @@
       }).join('');
     }
 
-    function generateTimeSlots(start, end, intervalMin) {
+    function generateTimeSlots(start, end, intervalMin, pausaInicio, pausaFim) {
       var slots = [], sp = start.split(':'), ep = end.split(':');
       var current = parseInt(sp[0]) * 60 + parseInt(sp[1]);
       var endMin = parseInt(ep[0]) * 60 + parseInt(ep[1]);
+      var pIni = 0, pFim = 0;
+      if (pausaInicio && pausaFim) {
+        var pi = pausaInicio.split(':'), pf = pausaFim.split(':');
+        pIni = parseInt(pi[0]) * 60 + parseInt(pi[1]);
+        pFim = parseInt(pf[0]) * 60 + parseInt(pf[1]);
+      }
       while (current + intervalMin <= endMin) {
+        // Pula horários dentro da pausa
+        if (pIni && pFim && current >= pIni && current < pFim) {
+          current = pFim;
+          continue;
+        }
         var hh = Math.floor(current / 60), mm = current % 60;
         slots.push(String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'));
         current += intervalMin;

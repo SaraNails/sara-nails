@@ -156,6 +156,23 @@
           <div id="admin-horarios-list"><div class="text-center"><div class="spinner"></div></div></div>
           <button class="btn btn-pink mt-24" onclick="saveHorarios()">Salvar Horários</button>
         </div>
+
+        <h2 class="admin-section-title" style="margin-top:28px">Bloquear Datas</h2>
+        <div class="admin-card">
+          <p style="font-size:13px;color:#6c757d;margin-bottom:14px">Marque dias que não terá atendimento (feriados, folgas, etc)</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group" style="margin:0;flex:1;min-width:150px">
+              <label>Data</label>
+              <input type="date" id="bloquear-data">
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:150px">
+              <label>Motivo (opcional)</label>
+              <input type="text" id="bloquear-motivo" placeholder="Ex: Feriado, Folga...">
+            </div>
+            <button class="btn btn-pink btn-sm" style="height:42px" onclick="bloquearData()">Bloquear</button>
+          </div>
+          <div id="datas-bloqueadas-list" style="margin-top:16px"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -355,8 +372,28 @@
         var ini = h ? h.hora_inicio : '08:00';
         var fim = h ? h.hora_fim : '18:00';
         var intv = h ? h.intervalo_min : 60;
-        return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #f0eaf5;flex-wrap:wrap"><label style="width:90px;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" class="horario-ativo" data-dia="'+i+'" '+(ativo?'checked':'')+'>'+dia+'</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="time" class="horario-inicio" data-dia="'+i+'" value="'+ini+'" style="padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px"><span style="font-size:12px;color:#6c757d">até</span><input type="time" class="horario-fim" data-dia="'+i+'" value="'+fim+'" style="padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px"><span style="font-size:12px;color:#6c757d">a cada</span><input type="number" class="horario-intervalo" data-dia="'+i+'" value="'+intv+'" min="15" step="15" style="width:55px;padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px"><span style="font-size:12px;color:#6c757d">min</span></div></div>';
+        var pIni = h && h.pausa_inicio ? h.pausa_inicio : '';
+        var pFim = h && h.pausa_fim ? h.pausa_fim : '';
+        return '<div style="padding:12px 0;border-bottom:1px solid #f0eaf5">'
+          + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          + '<label style="width:90px;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" class="horario-ativo" data-dia="'+i+'" '+(ativo?'checked':'')+'>'+dia+'</label>'
+          + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+          + '<input type="time" class="horario-inicio" data-dia="'+i+'" value="'+ini+'" style="padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px">'
+          + '<span style="font-size:12px;color:#6c757d">até</span>'
+          + '<input type="time" class="horario-fim" data-dia="'+i+'" value="'+fim+'" style="padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px">'
+          + '<span style="font-size:12px;color:#6c757d">a cada</span>'
+          + '<input type="number" class="horario-intervalo" data-dia="'+i+'" value="'+intv+'" min="15" step="15" style="width:55px;padding:6px;border:1px solid #e0d4f5;border-radius:6px;font-size:13px">'
+          + '<span style="font-size:12px;color:#6c757d">min</span>'
+          + '</div></div>'
+          + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;margin-left:96px">'
+          + '<span style="font-size:12px;color:#e74c3c;font-weight:500">Pausa:</span>'
+          + '<input type="time" class="pausa-inicio" data-dia="'+i+'" value="'+pIni+'" style="padding:5px;border:1px solid #f0d4d4;border-radius:6px;font-size:12px;width:100px" placeholder="Início">'
+          + '<span style="font-size:12px;color:#6c757d">até</span>'
+          + '<input type="time" class="pausa-fim" data-dia="'+i+'" value="'+pFim+'" style="padding:5px;border:1px solid #f0d4d4;border-radius:6px;font-size:12px;width:100px" placeholder="Fim">'
+          + '<span style="font-size:11px;color:#999">(deixe vazio se não tiver)</span>'
+          + '</div></div>';
       }).join('');
+      loadDatasBloqueadas();
     }
 
     async function saveHorarios() {
@@ -366,14 +403,49 @@
         var ini = document.querySelector('.horario-inicio[data-dia="'+i+'"]').value;
         var fim = document.querySelector('.horario-fim[data-dia="'+i+'"]').value;
         var intv = parseInt(document.querySelector('.horario-intervalo[data-dia="'+i+'"]').value) || 60;
+        var pIni = document.querySelector('.pausa-inicio[data-dia="'+i+'"]').value || null;
+        var pFim = document.querySelector('.pausa-fim[data-dia="'+i+'"]').value || null;
         var existing = horariosData.find(function(x){ return x.dia_semana === i; });
-        var payload = {dia_semana:i, hora_inicio:ini, hora_fim:fim, intervalo_min:intv, ativo:ativo};
+        var payload = {dia_semana:i, hora_inicio:ini, hora_fim:fim, intervalo_min:intv, ativo:ativo, pausa_inicio:pIni, pausa_fim:pFim};
         if (existing) await db.from('horarios_disponiveis').update(payload).eq('id',existing.id);
         else await db.from('horarios_disponiveis').insert(payload);
       }
       showLoading(false);
       alert('Horários salvos com sucesso!');
       loadAdminHorarios();
+    }
+
+    // ===== DATAS BLOQUEADAS =====
+    async function loadDatasBloqueadas() {
+      var c = document.getElementById('datas-bloqueadas-list');
+      var r = await db.from('datas_bloqueadas').select('*').order('data',{ascending:true});
+      if (!r.data || r.data.length === 0) { c.innerHTML = '<p style="font-size:13px;color:#999">Nenhuma data bloqueada</p>'; return; }
+      c.innerHTML = r.data.map(function(d) {
+        var dt = new Date(d.data + 'T12:00:00');
+        var ds = dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#faf7fd;border-radius:8px;margin-bottom:6px">'
+          + '<div><strong style="font-size:13px">'+ds+'</strong>'+(d.motivo ? '<span style="font-size:12px;color:#6c757d;margin-left:8px">'+d.motivo+'</span>' : '')+'</div>'
+          + '<button class="btn btn-danger btn-sm" onclick="desbloquearData(\''+d.id+'\')">Remover</button></div>';
+      }).join('');
+    }
+
+    async function bloquearData() {
+      var data = document.getElementById('bloquear-data').value;
+      var motivo = document.getElementById('bloquear-motivo').value.trim();
+      if (!data) { alert('Selecione uma data'); return; }
+      showLoading(true);
+      await db.from('datas_bloqueadas').insert({data:data, motivo:motivo||null});
+      showLoading(false);
+      document.getElementById('bloquear-data').value = '';
+      document.getElementById('bloquear-motivo').value = '';
+      loadDatasBloqueadas();
+    }
+
+    async function desbloquearData(id) {
+      showLoading(true);
+      await db.from('datas_bloqueadas').delete().eq('id',id);
+      showLoading(false);
+      loadDatasBloqueadas();
     }
 
     // ===== PWA + NOTIFICAÇÕES (POLLING) =====
